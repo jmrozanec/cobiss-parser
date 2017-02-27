@@ -1,0 +1,9 @@
+target
+.gradle
+.idea
+build
+*.iml
+gradle
+gradlew
+*.bat
+*.log
