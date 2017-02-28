@@ -2,7 +2,13 @@ package cobiss.parser;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.commons.io.IOUtils;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -12,10 +18,42 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class CobissParser {
-    public void parse(List<String> comarc){
+
+    public static List<DublinCore> parse(File comarc){
+        try {
+            return preprocess(Files.lines(comarc.toPath(), StandardCharsets.UTF_8).collect(Collectors.toList()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<DublinCore> parse(InputStream comarc){
+        try {
+            return preprocess(IOUtils.readLines(comarc, "UTF-8"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static List<DublinCore> preprocess(List<String>lines){
+        List<String> processed = Lists.newArrayList();
+        String last = "";
+        for(String line : lines){
+            if(line.matches("^\\s+.*")){
+                last+=last+line;
+            } else {
+                if(!last.isEmpty()){
+                    processed.add(removeBadSquaredBrackets(last.replaceAll("\\s+", " ")));
+                }
+                last = line;
+            }
+        }
+        return parse(processed);
+    }
+
+    public static List<DublinCore> parse(List<String> comarc){
         List<DublinCore> dublinCore = Lists.newArrayList();
         DublinCore dc = null;
-        String state = "START";
 
         String id = "";
         String title = "";//2251: a f  (v)
@@ -71,20 +109,24 @@ public class CobissParser {
                     format = buildFormat(inputline);
                     break;
                 case "100":
+                    System.out.println(line);
                     language = buildLanguage(inputline);
+                    System.out.println(language);
                     break;
             }
         }
         dc = new DublinCore(id, title, String.join(",", author), subject, description, publisher, "contributor",
-                date.isEmpty()?19910625:Integer.parseInt(date), type, format, identifier, "source", language, "relation", "coverage", "rights");
+                date.isEmpty()?19910625:Integer.parseInt(date), type, format, identifier, "source", language,
+                "relation", "coverage", "rights");
         dublinCore.add(dc);//TODO fill last element
 
         for(DublinCore core : dublinCore){
             System.out.println(">"+core.getTitle());
         }
+        return dublinCore;
     }
 
-    private String extractId(String line){
+    private static String extractId(String line){
         for(String item : line.split(" ")){
             if(item.startsWith("ID=")){
                 return item.replace("ID=", "");
@@ -93,7 +135,7 @@ public class CobissParser {
         return "";
     }
 
-    private String buildTitle(List<String>[] parsed){
+    private static String buildTitle(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         Set<String> acceptable = Sets.newHashSet("a", "b", "e");
@@ -109,7 +151,7 @@ public class CobissParser {
         return builder.toString();
     }
 
-    private String buildAuthor(List<String>[] parsed){
+    private static String buildAuthor(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         String a = "";
@@ -131,7 +173,7 @@ public class CobissParser {
         return String.join(",", names);
     }
 
-    private String buildDescription(List<String>[] parsed){
+    private static String buildDescription(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         Set<String> acceptable = Sets.newHashSet("a", "f", "i", "v");
@@ -150,10 +192,12 @@ public class CobissParser {
         return builder.toString();
     }
 
-    private String buildPublisher(List<String>[] parsed){
+    private static String buildPublisher(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         Set<String> acceptable = Sets.newHashSet("g");
+        System.out.println(Arrays.toString(prefixes.toArray()));
+        System.out.println(Arrays.toString(subtexts.toArray()));
         for(int j=0; j<prefixes.size(); j++){
             if(acceptable.contains(prefixes.get(j))){
                 return subtexts.get(j);
@@ -162,7 +206,7 @@ public class CobissParser {
         return "";
     }
 
-    private String buildSubject(List<String>[] parsed){
+    private static String buildSubject(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         List<String> out = Lists.newArrayList();
@@ -178,7 +222,7 @@ public class CobissParser {
         return String.join(",", out);
     }
 
-    private String buildDate(List<String>[] parsed){
+    private static String buildDate(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         Set<String> acceptable = Sets.newHashSet("d");
@@ -190,7 +234,7 @@ public class CobissParser {
         return "";
     }
 
-    private String buildType(List<String>[] parsed){
+    private static String buildType(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         StringBuilder builder = new StringBuilder();
@@ -203,7 +247,7 @@ public class CobissParser {
         return builder.toString().trim();
     }
 
-    private String buildFormat(List<String>[] parsed){
+    private static String buildFormat(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         StringBuilder builder = new StringBuilder();
@@ -223,7 +267,7 @@ public class CobissParser {
         return builder.toString().trim();
     }
 
-    private String buildLanguage(List<String>[] parsed){
+    private static String buildLanguage(List<String>[] parsed){
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         Set<String> acceptable = Sets.newHashSet("h");
@@ -236,7 +280,7 @@ public class CobissParser {
     }
 
     @SuppressWarnings("unchecked")
-    private List<String>[] parseLine(String line) {
+    private static List<String>[] parseLine(String line) {
         List<String> prefix = Lists.newArrayList();
         List<String> subtexts = Lists.newArrayList();
         Pattern MY_PATTERN = Pattern.compile("\\[(.*?)\\]");
@@ -247,5 +291,22 @@ public class CobissParser {
             prefix.add(m.group(1));
         }
         return new List[]{prefix, subtexts};
+    }
+
+    private static String removeBadSquaredBrackets(String s){
+        char[] array = s.toCharArray();
+        StringBuilder builder = new StringBuilder();
+        for(int j=0; j<array.length; j++){
+            if(j<array.length-2 && array[j]=='[' && array[j+2]==']'){
+                builder.append(array[j]);
+            }
+            if(Character.isLetter(array[j]) || Character.isDigit(array[j]) || Character.isWhitespace(array[j])){
+                builder.append(array[j]);
+            }
+            if(j>1 && array[j-2]=='[' && array[j]==']'){
+                builder.append(array[j]);
+            }
+        }
+        return builder.toString();
     }
 }
