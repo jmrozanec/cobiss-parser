@@ -43,7 +43,7 @@ public class CobissParser {
                 last+=last+line;
             } else {
                 if(!last.isEmpty()){
-                    processed.add(removeBadSquaredBrackets(last.replaceAll("\\s+", " ")));
+                    processed.add(ensureStartsWithSquareBrackets(removeBadSquaredBrackets(last.replaceAll("\\s+", " "))));
                 }
                 last = line;
             }
@@ -72,9 +72,21 @@ public class CobissParser {
                 if(dc!=null){
                     dublinCore.add(dc);
                 }
-                dc = new DublinCore(id, title, String.join(",", author), subject, description, publisher, "contributor",
-                        date.isEmpty()?19910625:Integer.parseInt(date), type, format, identifier, "source",
+
+                dc = new DublinCore(id, title, buildNames(author), subject, description, publisher, "contributor",
+                        dateToInt(date), type, format, id, "source",
                         language, "relation", "coverage", "rights");
+
+                title = "";
+                author = Lists.newArrayList();
+                description = "";
+                publisher = "";
+                subject = "";
+                date = "";
+                type = "";
+                format = "";
+                identifier = "";
+                language = "";
                 id = extractId(line);
             }
             String newstate = line.split(" ")[0];
@@ -109,20 +121,14 @@ public class CobissParser {
                     format = buildFormat(inputline);
                     break;
                 case "100":
-                    System.out.println(line);
                     language = buildLanguage(inputline);
-                    System.out.println(language);
                     break;
             }
         }
-        dc = new DublinCore(id, title, String.join(",", author), subject, description, publisher, "contributor",
-                date.isEmpty()?19910625:Integer.parseInt(date), type, format, identifier, "source", language,
+        dc = new DublinCore(id, title, buildNames(author), subject, description, publisher, "contributor",
+                dateToInt(date), type, format, identifier, "source", language,
                 "relation", "coverage", "rights");
-        dublinCore.add(dc);//TODO fill last element
-
-        for(DublinCore core : dublinCore){
-            System.out.println(">"+core.getTitle());
-        }
+        dublinCore.add(dc);
         return dublinCore;
     }
 
@@ -133,6 +139,16 @@ public class CobissParser {
             }
         }
         return "";
+    }
+
+    private static String buildNames(List<String>authors){
+        Set<String> names = Sets.newHashSet();
+        for(String n : authors){
+            for(String name : n.split(",")){
+                names.add(name.trim());
+            }
+        }
+        return String.join(", ", names);
     }
 
     private static String buildTitle(List<String>[] parsed){
@@ -196,8 +212,6 @@ public class CobissParser {
         List<String> prefixes = parsed[0];
         List<String> subtexts = parsed[1];
         Set<String> acceptable = Sets.newHashSet("g");
-        System.out.println(Arrays.toString(prefixes.toArray()));
-        System.out.println(Arrays.toString(subtexts.toArray()));
         for(int j=0; j<prefixes.size(); j++){
             if(acceptable.contains(prefixes.get(j))){
                 return subtexts.get(j);
@@ -293,6 +307,26 @@ public class CobissParser {
         return new List[]{prefix, subtexts};
     }
 
+    private static String ensureStartsWithSquareBrackets(String line){
+        int statesplit = 0;
+        if(line.indexOf(' ')<0 || line.indexOf('[')<0){
+            statesplit = Math.max(line.indexOf(' '), line.indexOf('['));
+        }else{
+            statesplit = Math.min(line.indexOf(' '), line.indexOf('['));
+        }
+
+        String state = line.substring(0, statesplit);
+        String content = line.substring(statesplit, line.length());//state token + whitespace
+        if(content.contains("[")){
+            if(!content.startsWith("[")){
+                line = state+" "+content.substring(content.indexOf("["));
+            }else{
+                line = state+" "+content;
+            }
+        }
+        return line;
+    }
+
     private static String removeBadSquaredBrackets(String s){
         char[] array = s.toCharArray();
         StringBuilder builder = new StringBuilder();
@@ -300,7 +334,7 @@ public class CobissParser {
             if(j<array.length-2 && array[j]=='[' && array[j+2]==']'){
                 builder.append(array[j]);
             }
-            if(Character.isLetter(array[j]) || Character.isDigit(array[j]) || Character.isWhitespace(array[j])){
+            if(array[j]!='[' && array[j]!=']'){
                 builder.append(array[j]);
             }
             if(j>1 && array[j-2]=='[' && array[j]==']'){
@@ -308,5 +342,26 @@ public class CobissParser {
             }
         }
         return builder.toString();
+    }
+
+    private static int dateToInt(String date){
+        if(date.isEmpty()){
+            return 19910625;
+        }
+        if(date.length()==4){
+            date = date+"0101";
+        }
+        if(date.length()==8){
+            int month = Integer.parseInt(date.substring(4, 6));
+            int day = Integer.parseInt(date.substring(6, 8));
+            if(month>12 || month<=0){
+                month = 1;
+            }
+            if(day>31 || day<=0){
+                day = 1;
+            }
+            date = date.substring(0,4)+String.format("%02d", month)+String.format("%02d", day);
+        }
+        return Integer.parseInt(date);
     }
 }
