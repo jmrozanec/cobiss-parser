@@ -7,7 +7,13 @@ A Java library to parse COBISS files. The project follows the [Semantic Versioni
 
 **Download**
 
-cobiss-parser will soon be available on Maven Central.
+cobiss-parser is available on [Maven central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.bit-scout%22) repository.
+
+    <dependency>
+        <groupId>com.bit-scout</groupId>
+        <artifactId>cobiss-parser</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </dependency>
 
 **Features**
 Allows to parse COBISS files and turn them into objects.
@@ -15,6 +21,10 @@ Allows to parse COBISS files and turn them into objects.
  
 **Example**
  
+ ```java
+ 
+    List<DublinCore> metadata = CobissParser.parse(new File("sample-cobiss-file.txt"));
+ ```
 
 **Contribute & Support!**
 

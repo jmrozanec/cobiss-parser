@@ -13,8 +13,7 @@
     <version>0.1.0-SNAPSHOT</version>
 
     <name>cobiss-parser</name>
-    <description>A Java library to parse COBISS files.
-    </description>
+    <description>A Java library to parse COBISS files.</description>
     <url>http://bit-scout.com</url>
 
     <licenses>
